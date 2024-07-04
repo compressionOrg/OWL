@@ -96,10 +96,10 @@ We provide a quick overview of the arguments:
 
 ```
 python   main.py    \
---model_name_or_path decapoda-research/llama-7b-hf     \
+--model_name_or_path Enoch/llama-7b-hf     \
 --Lamda 0.08 \
 --Hyper_m 5 \
---model decapoda-research/llama-7b-hf     \
+--model Enoch/llama-7b-hf     \
 --prune_method wanda_owl     \
 --sparsity_ratio 0.7 \
 --sparsity_type unstructured \
@@ -109,10 +109,10 @@ python   main.py    \
 ### Script example of pruning llama-7b using OWL-wanda [n:m sparsity]
 ```
 python   main.py    \
---model_name_or_path decapoda-research/llama-7b-hf     \
+--model_name_or_path Enoch/llama-7b-hf     \
 --Lamda 2 \
 --Hyper_m 6 \
---model decapoda-research/llama-7b-hf     \
+--model Enoch/llama-7b-hf     \
 --prune_method wanda_owl_structure      \
 --sparsity_ratio 0.5 \
 --sparsity_type "5:8"  \
@@ -123,10 +123,10 @@ python   main.py    \
 ### Script example of pruning llama-7b using OWL-SparseGPT
 ```
 python   main.py    \
---model_name_or_path decapoda-research/llama-7b-hf     \
+--model_name_or_path Enoch/llama-7b-hf     \
 --Lamda 0.08 \
 --Hyper_m 5 \
---model decapoda-research/llama-7b-hf     \
+--model Enoch/llama-7b-hf     \
 --prune_method sparsegpt_owl     \
 --sparsity_ratio 0.7 \
 --sparsity_type unstructured \
@@ -136,10 +136,10 @@ python   main.py    \
 ### Script example of pruning llama-7b using OWL-magnitude
 ```
 python   main.py    \
---model_name_or_path decapoda-research/llama-7b-hf     \
+--model_name_or_path Enoch/llama-7b-hf     \
 --Lamda 0.08 \
 --Hyper_m 5 \
---model decapoda-research/llama-7b-hf     \
+--model Enoch/llama-7b-hf     \
 --prune_method magnitude_owl      \
 --sparsity_ratio 0.7 \
 --sparsity_type unstructured \
