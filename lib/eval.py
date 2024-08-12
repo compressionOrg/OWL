@@ -5,6 +5,7 @@ import torch.nn as nn
 import sys
 # Import get_loaders function from data module within the same directory
 from .data import get_loaders 
+from pdb import set_trace as st
 
 # Function to evaluate perplexity (ppl) on a specified model and tokenizer
 def eval_ppl(model, tokenizer, device=torch.device("cuda:0")):
@@ -44,8 +45,11 @@ def eval_ppl_wikitext(model, testenc, bs=1, device=None):
         # Calculate end index
         j = min(i+bs, nsamples)
 
+        # st()
+        
         # Prepare inputs and move to device
-        inputs = testenc[:,(i * model.seqlen):(j * model.seqlen)].to(device)
+        # inputs = testenc[:,(i * model.seqlen):(j * model.seqlen)].to(device)
+        inputs = testenc[:,(i * model.seqlen):(j * model.seqlen)].to("cuda:1")
         inputs = inputs.reshape(j-i, model.seqlen)
 
         # Forward pass through the model

@@ -5,7 +5,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer
 # from importlib.metadata import version
 from collections import defaultdict
-from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt, check_sparsity, find_layers
+from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt, check_sparsity, find_layers,prune_wanda_zscores
 from lib.eval import eval_ppl
 import sys
 print('# of gpus: ', torch.cuda.device_count())
@@ -259,7 +259,12 @@ def main():
         help="Lamda",
     )
     
-    
+    parser.add_argument(
+        "--Scale",
+        default=0.2,
+        type=float,
+        help="Scale",
+    )
      
     parser.add_argument(
         '--Hyper_m', 
@@ -272,8 +277,13 @@ def main():
     
     parser.add_argument(
     "--outlier_by_wmetric", action="store_true", help="outlier_by_wmetric")  
-   
-        
+    
+    parser.add_argument(
+    "--save_log", action="store_true", help="save log")
+    
+    parser.add_argument(
+    "--layer_method", type=str, default="weight", help='layer-wise method')
+    
     
     args = parser.parse_args()
 
@@ -310,7 +320,7 @@ def main():
 
 
 
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:3")
     if "30b" in args.model or "65b" in args.model: # for 30b and 65b we use device_map to load onto multiple A6000 GPUs, thus the processing here.
         device = model.hf_device_map["lm_head"]
     print("use device ", device)
@@ -356,8 +366,15 @@ def main():
     elif args.prune_method == "wanda_owl":
 
         prune_wanda_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    
+    elif args.prune_method == "wanda_new":
 
+        prune_wanda_new(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+        
+    elif args.prune_method == "wanda_zscores":
 
+        prune_wanda_zscores(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    
     ############################ owl   ############################
     elif args.prune_method == "magnitude_owl":
 
@@ -379,17 +396,20 @@ def main():
         
     elif args.prune_method == "wanda_owl_structure_special":
         prune_wanda_outlier_structure_special(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    
+    elif args.prune_method == "dense":
+        pass
 
 
-         
+    print(f" prune method is {args.prune_method}")  
     ################################################################
     print("*"*30)
     sparsity_ratio = check_sparsity(model)
     print(f"sparsity sanity check {sparsity_ratio:.4f}")
     print("*"*30)
     ################################################################
-    ppl = eval_ppl(model, tokenizer, device)
-    print(f"ppl on wikitext {ppl}")
+    ppl_test = eval_ppl(model, tokenizer, device)
+    print(f"ppl on wikitext {ppl_test}")
 
     sys.stdout.flush()
 
@@ -402,6 +422,17 @@ def main():
         tokenizer.save_pretrained(args.save_model)
         print(f"model saved to {args.save_model}")
 
+    if args.save_log:
+        dirname = "results/{}".format(args.model)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        
+        filename = f"log_{args.prune_method}.txt"
+        save_filepath = os.path.join(dirname, filename)
+        with open(save_filepath, "a") as f:
+            print("method\tactual_sparsity\tsparsity_pattern\tLamda\tppl_test", file=f, flush=True)
+            print(f"{args.prune_method}\t{sparsity_ratio:.4f}\t{args.sparsity_type}\t{args.Lamda}\t{ppl_test:.4f}", file=f, flush=True)
+                
 
 
 

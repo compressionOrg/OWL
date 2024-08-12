@@ -8,6 +8,8 @@ from .data import get_loaders
 import numpy as np
 from pdb import set_trace as st 
 from collections import defaultdict
+from .utils import get_entropy,normalize,get_cv, cal_mhl_dis, get_z_scores_sum, get_z_scores
+import json
 
 
 def prepare_calibration_input_opt(model, dataloader, device):
@@ -136,6 +138,8 @@ def check_outlier(mask,threshold):
     return outlier_ratio
 
 
+
+
 def check_outlier_mean(mask,threshold):
 
 
@@ -152,6 +156,7 @@ def check_outlier_mean(mask,threshold):
     outlier_ratio=float(count)/total_params*100
     
     return outlier_ratio
+
 
 
 def prepare_calibration_input(model, dataloader, device):
@@ -190,7 +195,6 @@ def prepare_calibration_input(model, dataloader, device):
     attention_mask = cache['attention_mask']
     position_ids = cache['position_ids']
     model.config.use_cache = use_cache
-
     return inps, outs, attention_mask, position_ids 
 
 def return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before):
@@ -228,6 +232,612 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
             W[W_mask] = 0
             
 
+def get_layer_ratio_by_weight(args, model, tokenizer, device=torch.device("cuda:0")):
+    
+    all_layer_ratio=[]
+    all_layer_res = []
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+        
+    else:
+        layers = model.model.layers
+
+
+    for i in range(len(layers)):
+        layer = layers[i]
+
+        subset = find_layers(layer)
+                    
+        layer_wmetric=[]
+
+        for name in subset:
+            W_metric = subset[name].weight.data.clone()
+            layer_wmetric.append(W_metric) 
+                   
+        layer_wmetric = torch.cat([torch.flatten(x.cpu()) for x in layer_wmetric])
+        
+        all_layer_res.append(layer_wmetric)
+        
+    all_layer_metric = torch.cat([torch.flatten(x.cpu()) for x in all_layer_res])
+    total_mean = torch.mean(all_layer_metric)
+    total_std = torch.std(all_layer_metric)
+    print ("before adjustment", total_mean, total_std)
+    
+    all_norm_wmetric = []
+    for layer_wmetric in all_layer_res:
+        norm_layer_wmetric = (layer_wmetric - total_mean.item()) / total_std.item()
+        all_norm_wmetric.append(norm_layer_wmetric)
+        
+        per_layer_ratio = get_z_scores_sum(layer_wmetric, total_mean.item(), total_std.item())
+        print ("layer zscores ratio",per_layer_ratio)
+        all_layer_ratio.append(per_layer_ratio)
+    
+    # Test
+    # def tensor_to_list(obj):
+    #     if isinstance(obj, torch.Tensor):
+    #         return obj.tolist()
+    #     if isinstance(obj, dict):
+    #         return {k: tensor_to_list(v) for k, v in obj.items()}
+    #     if isinstance(obj, list):
+    #         return [tensor_to_list(i) for i in obj]
+    #     return obj
+
+    # all_norm_wmetric = tensor_to_list(all_norm_wmetric)
+    # with open("norm_wmetric.json", 'w', encoding='utf-8') as f:
+    #     json.dump(all_norm_wmetric, f, ensure_ascii=False, indent=4)
+    
+    print ("all layer zscores ratio",all_layer_ratio)
+ 
+    all_layer_ratio=np.array(all_layer_ratio)
+    
+    all_layer_ratio = ((all_layer_ratio - all_layer_ratio.min()) * (1/(all_layer_ratio.max() - all_layer_ratio.min()) * args.Lamda*2))
+    
+    all_layer_ratio= all_layer_ratio - np.mean(all_layer_ratio) + (1 - args.sparsity_ratio)
+   
+    print (all_layer_ratio, np.mean(all_layer_ratio), np.max(all_layer_ratio), np.min(all_layer_ratio))
+   
+    print ("normalization ratio is",all_layer_ratio)
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
+    
+    return all_layer_ratio
+
+def get_layer_ratio(args, model, tokenizer, device=torch.device("cuda:0")):
+    all_layer_ratio=[]
+    all_layer_res = []
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
+    print("dataset loading complete")
+    with torch.no_grad():
+        if "OPT" in model.__class__.__name__:
+            inps, outs, attention_mask, position_ids = prepare_calibration_input_opt(model, dataloader, device)
+        else:
+            inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+
+    print ("inps",inps)
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+        
+    else:
+        layers = model.model.layers
+
+    for i in range(len(layers)):
+        layer = layers[i]
+
+        subset = find_layers(layer)
+
+        if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            inps, outs, position_ids = inps.to(dev), outs.to(dev), position_ids.to(dev)
+
+        wrapped_layers = {}
+        for name in subset:
+            wrapped_layers[name] = WrappedGPT(subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
+            return tmp
+
+        handles = []
+        for name in wrapped_layers:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for h in handles:
+            h.remove()
+            
+        # layer_ametric = []
+        layer_wmetric = []
+
+        for name in subset:
+
+            print(f"pruning layer {i} name {name}")
+            W = subset[name].weight.data.clone()
+            # Wanda
+            W_metric = torch.abs(W) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+            # RIA
+            # W_metric = (torch.abs(W)/torch.sum(torch.abs(W), dim=0) + torch.abs(W)/torch.sum(torch.abs(W), dim=1).reshape(-1, 1)) * (torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1))))**0.5
+            
+            # Activation 
+            # activation_data=torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+            # layer_ametric.append(activation_data) 
+            
+            layer_wmetric.append(W_metric) 
+                
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+                 
+        layer_metric = torch.cat([torch.flatten(x.cpu()) for x in layer_metric])
+        # layer_ametic = torch.cat([torch.flatten(x.cpu()) for x in layer_ametric])
+        # OWL
+        # for out_ratio in [args.Hyper_m]:
+            
+        #     out_ratio_layer=check_outlier_mean(layer_wmetric,out_ratio)
+        #     print ("layer outlier ratio",out_ratio,out_ratio_layer)
+            
+        all_layer_res.append(layer_metric)
+        
+    all_layer_metric = torch.cat([torch.flatten(x.cpu()) for x in all_layer_res])
+    total_mean = torch.mean(all_layer_metric)
+    total_std = torch.std(all_layer_metric)
+    print ("before adjustment", total_mean, total_std)
+    
+    
+    for layer_wmetric in all_layer_res:
+        per_layer_ratio = get_z_scores_sum(layer_wmetric, total_mean.item(), total_std.item())
+        print ("layer zscores ratio",per_layer_ratio)
+        all_layer_ratio.append(per_layer_ratio)
+    print ("all layer zscores ratio",all_layer_ratio)
+ 
+    all_layer_ratio=np.array(all_layer_ratio)
+    
+    all_layer_ratio = ((all_layer_ratio - all_layer_ratio.min()) * (1/(all_layer_ratio.max() - all_layer_ratio.min()) * args.Lamda*2))
+    
+    all_layer_ratio=all_layer_ratio-np.mean(all_layer_ratio)+(1-args.sparsity_ratio)
+   
+    print (all_layer_ratio,np.mean(all_layer_ratio),np.max(all_layer_ratio),np.min(all_layer_ratio))
+   
+    print ("after adjustment",all_layer_ratio)
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
+    
+    return all_layer_ratio
+
+
+def prune_wanda_zscores(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+    
+    all_layer_ratio = get_layer_ratio_by_weight(args, model, tokenizer, device=torch.device("cuda:0"))
+    
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
+    print("dataset loading complete")
+    with torch.no_grad():
+        if "OPT" in model.__class__.__name__: 
+            inps, outs, attention_mask, position_ids = prepare_calibration_input_opt(model, dataloader, device)
+        else:  
+            inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+    print ("inps",inps)
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+    else:
+        layers = model.model.layers
+
+    for i in range(len(layers)):
+        layer = layers[i]
+        subset = find_layers(layer)
+        if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            inps, outs,  position_ids = inps.to(dev), outs.to(dev),  position_ids.to(dev)
+
+        wrapped_layers = {}
+        for name in subset:
+            wrapped_layers[name] = WrappedGPT(subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
+            return tmp
+
+        handles = []
+        for name in wrapped_layers:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for h in handles:
+            h.remove()  
+
+        for name in subset:
+            print(f"pruning layer {i} name {name}")
+            W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+            # TODO:add entropy
+            # pr = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=0)
+            # pc = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=1).reshape(-1, 1)
+            # W_metric = torch.abs((-pr * torch.log(pr)) - (pc * torch.log(pc)))
+            
+            # TODO:add wentropy
+            # # 定义一个很小的常数 epsilon 避免计算对数时的问题
+            # epsilon = 1e-10
+            # W_metric += epsilon
+            # # 归一化张量使其元素和为1
+            # probabilities = W_metric / W_metric.sum()
+            # # 计算概率分布的对数
+            # log_probabilities = torch.log(probabilities)
+            # # 为每个元素计算熵
+            # H = -probabilities * log_probabilities
+            # W_metric = torch.abs(W_metric * H)
+          
+            activation_data=torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+
+            layer_sparsity_ratio= 1 - all_layer_ratio[i]
+            
+            
+            if layer_sparsity_ratio <= 0:
+                layer_sparsity_ratio = 0.01
+
+            W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+            if prune_n != 0:
+                # structured n:m sparsity
+                for ii in range(W_metric.shape[1]):
+                    if ii % prune_m == 0:
+                        tmp = W_metric[:,ii:(ii+prune_m)].float()
+                        W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
+            else:
+                sort_res = torch.sort(W_metric, dim=-1, stable=True)
+
+                if args.use_variant:
+                    # wanda variant 
+                    tmp_metric = torch.cumsum(sort_res[0], dim=1)
+                    sum_before = W_metric.sum(dim=1)
+
+                    alpha = 0.4
+                    alpha_hist = [0., 0.8]
+                    W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    while (torch.abs(cur_sparsity - layer_sparsity_ratio)>0.001) and (alpha_hist[1]-alpha_hist[0]>=0.001):
+                        if cur_sparsity > layer_sparsity_ratio:
+                            alpha_new = (alpha + alpha_hist[0]) / 2.0
+                            alpha_hist[1] = alpha
+                        else:
+                            alpha_new = (alpha + alpha_hist[1]) / 2.0
+                            alpha_hist[0] = alpha
+
+                        alpha = alpha_new 
+                        W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    print(f"alpha found {alpha} sparsity {cur_sparsity:.6f}")
+                else:
+                    # unstructured pruning
+                    indices = sort_res[1][:,:int(W_metric.shape[1]*layer_sparsity_ratio)]
+                    W_mask.scatter_(1, indices, True)
+#             print ("W_mask",W_mask)
+            subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
+
+
+
+
+def prune_wanda_new(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+    ##### calucalte outlier ratio
+    
+    
+    
+    all_layer_ratio=[]
+    all_subset_ratio = []
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
+    print("dataset loading complete")
+    with torch.no_grad():
+        
+        if "OPT" in model.__class__.__name__:
+            
+            inps, outs, attention_mask, position_ids = prepare_calibration_input_opt(model, dataloader, device)
+        else:
+            
+            inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+
+
+
+    print ("inps",inps)
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+        
+    else:
+        layers = model.model.layers
+
+
+    for i in range(len(layers)):
+        layer = layers[i]
+
+        subset = find_layers(layer)
+
+        if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            # inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            inps, outs, position_ids = inps.to(dev), outs.to(dev), position_ids.to(dev)
+
+        wrapped_layers = {}
+        for name in subset:
+            wrapped_layers[name] = WrappedGPT(subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
+            return tmp
+
+        handles = []
+        for name in wrapped_layers:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for h in handles:
+            h.remove()
+            
+            
+        layer_wmetric=[]
+        subset_dict = {}
+
+        for name in subset:
+            
+
+
+            
+
+            print(f"pruning layer {i} name {name}")
+            W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+
+
+            activation_data=torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            layer_wmetric.append(W_metric)  
+            subset_dict[subset[name]] = W_metric
+            
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+
+        
+        
+        all_subset_ratio.append(subset_dict)
+    
+        
+        layer_wmetric = torch.cat([torch.flatten(x.cpu()) for x in layer_wmetric])
+        
+        for out_ratio in [args.Hyper_m]:
+            out_ratio_layer=check_outlier_mean(layer_wmetric,out_ratio)
+            print ("layer outlier ratio",out_ratio,out_ratio_layer)
+        # TODO
+        # entropy
+        # out_ratio_layer = get_entropy(layer_wmetric)
+        
+        # sum
+        # out_ratio_layer = torch.sum(layer_wmetric)
+        
+        # cv
+        # out_ratio_layer = get_cv(layer_wmetric)
+        # st()
+        # get Mahalanobis distances
+        # layer_wmetric_2d = torch.cat(layer_wmetric)
+        # out_ratio_layer = cal_mhl_dis(layer_wmetric_2d)
+        
+        all_layer_ratio.append(out_ratio_layer)
+        
+        
+        
+    print ("subset",all_subset_ratio)
+    
+
+    print ("before adjustment",all_layer_ratio)
+
+    # st()
+
+    
+    
+    all_layer_ratio=np.array(all_layer_ratio)
+    
+    # all_layer_ratio = normalize(all_layer_ratio, args.Scale)
+    # all_layer_ratio=all_layer_ratio+(1-args.sparsity_ratio)
+    # st()
+    
+    # owl
+    all_layer_ratio = ((all_layer_ratio - all_layer_ratio.min()) * (1/(all_layer_ratio.max() - all_layer_ratio.min()) * args.Lamda*2))
+    all_layer_ratio=all_layer_ratio - np.mean(all_layer_ratio) +(1-args.sparsity_ratio)
+   
+    print (all_layer_ratio,np.mean(all_layer_ratio),np.max(all_layer_ratio),np.min(all_layer_ratio))
+
+   
+    
+                
+        
+    
+    print ("after adjustment",all_layer_ratio  )
+    
+
+
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
+    ############## prune
+    
+    
+    
+    
+    
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
+    print("dataset loading complete")
+    with torch.no_grad():
+        
+        if "OPT" in model.__class__.__name__:
+            
+            inps, outs, attention_mask, position_ids = prepare_calibration_input_opt(model, dataloader, device)
+        else:
+            
+            inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+
+
+
+    print ("inps",inps)
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+        
+    else:
+        layers = model.model.layers
+
+
+    for i in range(len(layers)):
+        layer = layers[i]
+
+        subset = find_layers(layer)
+
+        if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            # inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            inps, outs,  position_ids = inps.to(dev), outs.to(dev),  position_ids.to(dev)
+
+        wrapped_layers = {}
+        for name in subset:
+            wrapped_layers[name] = WrappedGPT(subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
+            return tmp
+
+        handles = []
+        for name in wrapped_layers:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for h in handles:
+            h.remove()
+            
+            
+        
+
+        for name in subset:
+            
+
+            print(f"pruning layer {i} name {name}")
+            W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+            # TODO:使用不同方法进行稀疏化
+            # pr = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=0)
+            # pc = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=1).reshape(-1, 1)
+            # W_metric = torch.abs((-pr * torch.log(pr)) - (pc * torch.log(pc)))
+            
+
+            activation_data=torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+
+            layer_sparsity_ratio= 1-all_layer_ratio[i]
+            
+            
+            if layer_sparsity_ratio<=0:
+                layer_sparsity_ratio=0.01
+
+            W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+            if prune_n != 0:
+                # structured n:m sparsity
+                for ii in range(W_metric.shape[1]):
+                    if ii % prune_m == 0:
+                        tmp = W_metric[:,ii:(ii+prune_m)].float()
+                        W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
+            else:
+                sort_res = torch.sort(W_metric, dim=-1, stable=True)
+                
+
+                if args.use_variant:
+                    # wanda variant 
+                    tmp_metric = torch.cumsum(sort_res[0], dim=1)
+                    sum_before = W_metric.sum(dim=1)
+
+                    alpha = 0.4
+                    alpha_hist = [0., 0.8]
+                    W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    while (torch.abs(cur_sparsity - layer_sparsity_ratio)>0.001) and (alpha_hist[1]-alpha_hist[0]>=0.001):
+                        if cur_sparsity > layer_sparsity_ratio:
+                            alpha_new = (alpha + alpha_hist[0]) / 2.0
+                            alpha_hist[1] = alpha
+                        else:
+                            alpha_new = (alpha + alpha_hist[1]) / 2.0
+                            alpha_hist[0] = alpha
+
+                        alpha = alpha_new 
+                        W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    print(f"alpha found {alpha} sparsity {cur_sparsity:.6f}")
+                else:
+                    # unstructured pruning
+                    indices = sort_res[1][:,:int(W_metric.shape[1]*layer_sparsity_ratio)]
+                    W_mask.scatter_(1, indices, True)
+#             print ("W_mask",W_mask)
+            subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+
+
+
+
+
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
 
 
 
@@ -305,7 +915,7 @@ def prune_wanda_outlier_structure_special(args, model, tokenizer, device=torch.d
         layer_wmetric = torch.cat([torch.flatten(x.cpu()) for x in layer_wmetric])
 
 
-
+        
         for out_ratio in [args.Hyper_m]:
             out_ratio_layer = check_outlier_mean(layer_wmetric, out_ratio)
             print ("layer outlier ratio",out_ratio,out_ratio_layer)
@@ -888,7 +1498,8 @@ def prune_wanda_outlier(args, model, tokenizer, device=torch.device("cuda:0"), p
 
         if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
             dev = model.hf_device_map[f"model.layers.{i}"]
-            inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            # inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            inps, outs, position_ids = inps.to(dev), outs.to(dev), position_ids.to(dev)
 
         wrapped_layers = {}
         for name in subset:
@@ -942,6 +1553,7 @@ def prune_wanda_outlier(args, model, tokenizer, device=torch.device("cuda:0"), p
 
         layer_wmetric = torch.cat([torch.flatten(x.cpu()) for x in layer_wmetric])
         
+        # get_sensitivity(layer_wmetric)
         for out_ratio in [args.Hyper_m]:
             
             out_ratio_layer=check_outlier_mean(layer_wmetric,out_ratio)
@@ -956,17 +1568,17 @@ def prune_wanda_outlier(args, model, tokenizer, device=torch.device("cuda:0"), p
     print ("before adjustment",all_layer_ratio)
 
     
+ 
+    
 
-    
-    
     all_layer_ratio=np.array(all_layer_ratio)
     
     all_layer_ratio = ((all_layer_ratio - all_layer_ratio.min()) * (1/(all_layer_ratio.max() - all_layer_ratio.min()) * args.Lamda*2))
-    
+    # st()
     all_layer_ratio=all_layer_ratio-np.mean(all_layer_ratio)+(1-args.sparsity_ratio)
-    
+   
     print (all_layer_ratio,np.mean(all_layer_ratio),np.max(all_layer_ratio),np.min(all_layer_ratio))
-
+    # st()
    
     
                 
@@ -1016,7 +1628,8 @@ def prune_wanda_outlier(args, model, tokenizer, device=torch.device("cuda:0"), p
 
         if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
             dev = model.hf_device_map[f"model.layers.{i}"]
-            inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            # inps, outs, attention_mask, position_ids = inps.to(dev), outs.to(dev), attention_mask.to(dev), position_ids.to(dev)
+            inps, outs,  position_ids = inps.to(dev), outs.to(dev),  position_ids.to(dev)
 
         wrapped_layers = {}
         for name in subset:
@@ -1047,8 +1660,26 @@ def prune_wanda_outlier(args, model, tokenizer, device=torch.device("cuda:0"), p
 
             print(f"pruning layer {i} name {name}")
             W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+            
+            # TODO:add entropy
+            # pr = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=0)
+            # pc = torch.abs(W_metric)/torch.sum(torch.abs(W_metric), dim=1).reshape(-1, 1)
+            # W_metric = torch.abs((-pr * torch.log(pr)) - (pc * torch.log(pc)))
+            
+            # TODO:add wentropy
+            # # 定义一个很小的常数 epsilon 避免计算对数时的问题
+            # epsilon = 1e-10
+            # W_metric += epsilon
+            # # 归一化张量使其元素和为1
+            # probabilities = W_metric / W_metric.sum()
+            # # 计算概率分布的对数
+            # log_probabilities = torch.log(probabilities)
+            # # 为每个元素计算熵
+            # H = -probabilities * log_probabilities
+            # W_metric = torch.abs(W_metric * H)
 
-
+            
+            
             activation_data=torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
 
             layer_sparsity_ratio= 1-all_layer_ratio[i]
