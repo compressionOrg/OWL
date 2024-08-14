@@ -54,7 +54,7 @@ def get_llm(model, cache_dir="llm_weights"):
     model = AutoModelForCausalLM.from_pretrained(
         model, 
         torch_dtype=torch.float16, 
-        cache_dir=cache_dir, 
+        # cache_dir=cache_dir, 
         low_cpu_mem_usage=True, 
         device_map="auto"
     )
@@ -75,10 +75,9 @@ def main():
     parser.add_argument("--prune_method", type=str)
     parser.add_argument("--cache_dir", default="llm_weights", type=str )
     parser.add_argument('--use_variant', action="store_true", help="whether to use the wanda variant described in the appendix")
-    parser.add_argument('--save', type=str, default=None, help='Path to save results.')
+    parser.add_argument('--save', type=str, default="result", help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
-
-
+    parser.add_argument('--alpha', type=float, default=0, help='scale level')
 ########################################### for train
     parser.add_argument(
         "--dataset_name",
@@ -236,9 +235,6 @@ def main():
     )
 
 
-
-   
-
     #### saving parameters #####
     
     parser.add_argument(
@@ -302,6 +298,10 @@ def main():
 
     model_name = args.model.split("/")[-1]
     print(f"loading llm model {args.model}")
+    
+    # Offline load moodel
+    args.model = args.cache_dir + "/models--" + args.model.replace("/", "--") + "/model"
+
     model = get_llm(args.model, args.cache_dir)
     
     
@@ -315,7 +315,7 @@ def main():
     if "opt" in args.model:
         tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
     elif "llama" in args.model:
-    
+        
         tokenizer = LlamaTokenizer.from_pretrained(args.model, use_fast=False)
 
 

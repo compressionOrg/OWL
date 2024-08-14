@@ -103,7 +103,7 @@ python   main.py    \
 --prune_method wanda_owl     \
 --sparsity_ratio 0.7 \
 --sparsity_type unstructured \
---save save_test/
+--save save_test/ 
 ```
 
 ### Script example of pruning llama-7b using OWL-wanda [n:m sparsity]
