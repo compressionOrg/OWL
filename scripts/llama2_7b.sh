@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set common variables
-model="Enoch/llama-7b-hf"
 
+model="meta-llama/Llama-2-7b-hf"
 # sparsity_ratio=0.7
 sparsity_ratios=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8)
 model_name=$(echo "$model" | awk -F'/' '{print $2}')

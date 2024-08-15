@@ -2,10 +2,10 @@ import argparse
 import os 
 import numpy as np
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer,GPT2Tokenizer
 # from importlib.metadata import version
 from collections import defaultdict
-from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt, check_sparsity, find_layers,prune_wanda_zscores
+from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt, check_sparsity, find_layers,prune_wanda_zscores,test
 from lib.eval import eval_ppl
 import sys
 print('# of gpus: ', torch.cuda.device_count())
@@ -313,14 +313,13 @@ def main():
     model.eval()
     
     if "opt" in args.model:
+        tokenizer = GPT2Tokenizer.from_pretrained(args.model, use_fast=False)
+    else:
         tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False)
-    elif "llama" in args.model:
-        
-        tokenizer = LlamaTokenizer.from_pretrained(args.model, use_fast=False)
 
 
 
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:0")
     if "30b" in args.model or "65b" in args.model: # for 30b and 65b we use device_map to load onto multiple A6000 GPUs, thus the processing here.
         device = model.hf_device_map["lm_head"]
     print("use device ", device)
@@ -374,6 +373,9 @@ def main():
     elif args.prune_method == "wanda_zscores":
 
         prune_wanda_zscores(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    elif args.prune_method == "test":
+
+        test(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
     
     ############################ owl   ############################
     elif args.prune_method == "magnitude_owl":

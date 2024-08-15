@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Set common variables
-model="Enoch/llama-7b-hf"
 
+model="meta-llama/Llama-2-13b-hf"
 # sparsity_ratio=0.7
 sparsity_ratios=(0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8)
 model_name=$(echo "$model" | awk -F'/' '{print $2}')
 
-cuda_device=3
+cuda_device=2,3
 
 # Lamda_ratio=(0.01 0.02 0.05 0.08 0.1 0.2)
 
@@ -88,8 +88,8 @@ run_magnitude_owl () {
 
 for sparsity_ratio in "${sparsity_ratios[@]}"
 do
-    # run_wanda   ${sparsity_ratio}
-    # run_wanda_owl   ${sparsity_ratio}
+    run_wanda   ${sparsity_ratio}
+    run_wanda_owl   ${sparsity_ratio}
     run_sparsegpt   ${sparsity_ratio}
     run_sparsegpt_owl   ${sparsity_ratio}
     run_magnitude   ${sparsity_ratio}
