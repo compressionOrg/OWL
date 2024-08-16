@@ -49,9 +49,6 @@ class TokenizerWrapper:
         self.input_ids = input_ids
 
 
-## TODO:
-## 1. 多个nsample
-## 2.
 
 def get_llm(model, cache_dir="llm_weights"):
     model = AutoModelForCausalLM.from_pretrained(

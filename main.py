@@ -5,8 +5,9 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer,GPT2Tokenizer
 # from importlib.metadata import version
 from collections import defaultdict
-from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt, check_sparsity, find_layers,prune_wanda_zscores,test,prune_wanda_csl,cal_sensitive
+from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt,prune_wanda_zscores,test,prune_wanda_csl,get_layer_metric
 from lib.eval import eval_ppl
+from lib.utils import check_sparsity, find_layers
 import sys
 print('# of gpus: ', torch.cuda.device_count())
 
@@ -70,8 +71,8 @@ def main():
     parser.add_argument('--model', type=str, help='LLaMA model')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
-    parser.add_argument('--grad_nsamples', type=int, default=10, help='grad_nsamples')
-    parser.add_argument('--sparsity_ratio', type=float, default=0, help='Sparsity level')
+    parser.add_argument('--grad_nsamples', type=int, default=1, help='grad_nsamples')
+    parser.add_argument('--sparsity_ratio', type=float, default=0.7, help='Sparsity level')
     parser.add_argument("--sparsity_type", type=str)
     parser.add_argument("--prune_method", type=str)
     parser.add_argument("--cache_dir", default="llm_weights", type=str )
@@ -79,6 +80,9 @@ def main():
     parser.add_argument('--save', type=str, default="result", help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--alpha', type=float, default=0.15, help='alpha')
+    parser.add_argument('--conn_ratio', type=float, default=0.5, help='conn_ratio')
+    parser.add_argument('--node_ratio', type=float, default=0.5, help='node_ratio')
+    
 ########################################### for train
     parser.add_argument(
         "--dataset_name",
@@ -324,8 +328,8 @@ def main():
 
     print ("target sparsity", args.sparsity_ratio)   
     
-    if args.prune_method == "csl":
-        metric = cal_sensitive(args, model, tokenizer, device)
+    if "csl" in args.prune_method:
+        metric = get_layer_metric(args, model, tokenizer, device)
         
     model.eval()
 
