@@ -10,8 +10,8 @@ from pdb import set_trace as st
 from collections import defaultdict
 from .utils import get_entropy,normalize,get_cv, cal_mhl_dis, get_z_scores_sum, get_z_scores
 import json
-
-
+from transformers import AdamW
+from .imp import gradient
 def prepare_calibration_input_opt(model, dataloader, device):
     use_cache = model.config.use_cache
     model.config.use_cache = False
@@ -204,6 +204,32 @@ def return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before):
     W_mask = (W_metric <= thres)
     cur_sparsity = (W_mask==True).sum() / W_mask.numel()
     return W_mask, cur_sparsity
+
+def cal_sensitive(args, model, tokenizer, device):
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.grad_nsamples,seed=args.seed,seqlen=64,tokenizer=tokenizer)
+    print("dataset loading complete")
+    optimizer = AdamW(model.parameters(), lr=0.01, eps=0.01)
+    optimizer.zero_grad()
+    # TODO:del scale
+    scale = 1
+    gradients = gradient(model, scale)
+    nsample = 0
+    model.train()
+    for input_ids, labels in dataloader:
+        nsample+=1
+        print("making gradient computation on sample: ", nsample)
+        input_ids = input_ids.to(device)
+        labels = labels.to(device)
+        outputs = model(input_ids=input_ids, labels=labels) 
+        loss = outputs.loss
+        print("Printing the loss:", loss)
+        loss.backward()
+        gradients.update_gradient(model, nsample)
+        optimizer.zero_grad()
+    print("Done")
+    return gradients
+
 
 def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
     
@@ -586,6 +612,155 @@ def get_layer_ratio(args, model, tokenizer, device=torch.device("cuda:0")):
     
     return all_layer_ratio
 
+def get_layer_ratios(args, model, tokenizer, metric, device=torch.device("cuda:0")):
+    metric_conn = metric.total_conn
+    metric_node = metric.total_node
+    # st()
+     
+    ## TODO:================C2========
+    # ppl on wikitext 29.33
+    # 1. 对每一层进行zscore计算（或比值）
+    # 2. 计算每一层的z分数绝对值大于 1 的层中权重的比例，评估重要性
+    # 3.根据重要性分配剪枝比例
+    # 初始化字典来保存剪枝比例
+    layer_importance = {}
+    # 1. 对每一层进行z-score计算
+
+    for layer_name, metric in metric_conn.items():
+        per_layer_mean = torch.mean(metric_conn[layer_name])
+        per_layer_std = torch.std(metric_conn[layer_name])
+        z_scores = (metric - per_layer_mean) / per_layer_std
+        # 3. 计算每一层的z分数绝对值小于1的权重比例
+        imp_ratios = torch.sum(torch.abs(z_scores) < 1).float() / metric.numel()
+        layer_importance[layer_name] = imp_ratios
+    
+    # 4. 根据重要性分配剪枝比例
+    total_importance = sum(layer_importance.values())
+    imps = {}
+    for layer in layer_importance:
+        importance_ratio = layer_importance[layer] / total_importance
+        imps[layer] = importance_ratio
+    # st()
+    imp_ratios = torch.tensor(list(imps.values()))
+    min_ratio = torch.min(imp_ratios)
+    max_ratio = torch.max(imp_ratios)
+    scaled_ratios = (imp_ratios - min_ratio) * (1/(max_ratio - min_ratio)*args.alpha*2)
+    # TODO:================C2========
+    
+    all_layer_ratio = scaled_ratios - torch.mean(scaled_ratios) + (1-args.sparsity_ratio)
+    print(all_layer_ratio.tolist())
+    return all_layer_ratio.tolist()
+
+def prune_wanda_csl(args, model, tokenizer, metric, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
+    
+    ratio = get_layer_ratios(args, model, tokenizer, metric, device=torch.device("cuda:0"))
+    # with open("all_layer_ratio_{}_{}.json".format(args.sparsity_ratio, args.alpha), 'r', encoding='utf-8') as json_file:
+    #     ratio = json.load(json_file)
+    # ratio = []
+    all_layer_ratio = np.array(ratio)
+    
+    use_cache = model.config.use_cache 
+    model.config.use_cache = False 
+
+    print("loading calibdation data")
+    dataloader, _ = get_loaders("c4",nsamples=args.nsamples,seed=args.seed,seqlen=2048,tokenizer=tokenizer)
+    print("dataset loading complete")
+    with torch.no_grad():
+        if "OPT" in model.__class__.__name__: 
+            inps, outs, attention_mask, position_ids = prepare_calibration_input_opt(model, dataloader, device)
+        else:  
+            inps, outs, attention_mask, position_ids = prepare_calibration_input(model, dataloader, device)
+    print ("inps",inps)
+    if "opt" in args.model:
+        layers=model.model.decoder.layers
+    else:
+        layers = model.model.layers
+
+    for i in range(len(layers)):
+        layer = layers[i]
+        subset = find_layers(layer)
+        if f"model.layers.{i}" in model.hf_device_map:   ## handle the case for llama-30B and llama-65B, when the device map has multiple GPUs;
+            dev = model.hf_device_map[f"model.layers.{i}"]
+            inps, outs,  position_ids = inps.to(dev), outs.to(dev),  position_ids.to(dev)
+
+        wrapped_layers = {}
+        for name in subset:
+            wrapped_layers[name] = WrappedGPT(subset[name])
+
+        def add_batch(name):
+            def tmp(_, inp, out):
+                wrapped_layers[name].add_batch(inp[0].data, out.data)
+            return tmp
+
+        handles = []
+        for name in wrapped_layers:
+            handles.append(subset[name].register_forward_hook(add_batch(name)))
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        for h in handles:
+            h.remove()  
+
+        for name in subset:
+            print(f"pruning layer {i} name {name}")
+            W_metric = torch.abs(subset[name].weight.data) * torch.sqrt(wrapped_layers[name].scaler_row.reshape((1,-1)))
+
+            # layer_sparsity_ratio= all_layer_ratio[i]
+            layer_sparsity_ratio= 1 - all_layer_ratio[i]
+            
+            if layer_sparsity_ratio <= 0:
+                layer_sparsity_ratio = 0.01
+
+            W_mask = (torch.zeros_like(W_metric) == 1)  ## initialize a mask to be all False
+            if prune_n != 0:
+                # structured n:m sparsity
+                for ii in range(W_metric.shape[1]):
+                    if ii % prune_m == 0:
+                        tmp = W_metric[:,ii:(ii+prune_m)].float()
+                        W_mask.scatter_(1,ii+torch.topk(tmp, prune_n,dim=1, largest=False)[1], True)
+            else:
+                sort_res = torch.sort(W_metric, dim=-1, stable=True)
+
+                if args.use_variant:
+                    # wanda variant 
+                    tmp_metric = torch.cumsum(sort_res[0], dim=1)
+                    sum_before = W_metric.sum(dim=1)
+
+                    alpha = 0.4
+                    alpha_hist = [0., 0.8]
+                    W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    while (torch.abs(cur_sparsity - layer_sparsity_ratio)>0.001) and (alpha_hist[1]-alpha_hist[0]>=0.001):
+                        if cur_sparsity > layer_sparsity_ratio:
+                            alpha_new = (alpha + alpha_hist[0]) / 2.0
+                            alpha_hist[1] = alpha
+                        else:
+                            alpha_new = (alpha + alpha_hist[1]) / 2.0
+                            alpha_hist[0] = alpha
+
+                        alpha = alpha_new 
+                        W_mask, cur_sparsity = return_given_alpha(alpha, sort_res, W_metric, tmp_metric, sum_before)
+                    print(f"alpha found {alpha} sparsity {cur_sparsity:.6f}")
+                else:
+                    # unstructured pruning
+                    indices = sort_res[1][:,:int(W_metric.shape[1]*layer_sparsity_ratio)]
+                    W_mask.scatter_(1, indices, True)
+#             print ("W_mask",W_mask)
+            subset[name].weight.data[W_mask] = 0  ## set weights to zero 
+
+        for j in range(args.nsamples):
+            with torch.no_grad():
+                if "OPT" in model.__class__.__name__:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask)[0]
+                else:
+                    outs[j] = layer(inps[j].unsqueeze(0), attention_mask=attention_mask, position_ids=position_ids)[0]
+        inps, outs = outs, inps
+
+    model.config.use_cache = use_cache 
+    torch.cuda.empty_cache()
+
 
 def prune_wanda_zscores(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
     
@@ -721,7 +896,7 @@ def test(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune
     # all_layer_ratio = get_layer_ratio_by_weight(args, model, tokenizer, device=torch.device("cuda:0"))
     # with open("all_layer_ratio_{}_{}.json".format(args.sparsity_ratio, args.alpha), 'r', encoding='utf-8') as json_file:
     #     ratio = json.load(json_file)
-    ratio = [0.3470216989517212, 0.3678314685821533, 0.3681355118751526, 0.3487108051776886, 0.35054856538772583, 0.35075122117996216, 0.3532443642616272, 0.35171064734458923, 0.3545415997505188, 0.3521363139152527, 0.34425830841064453, 0.35281869769096375, 0.3458460569381714, 0.35102149844169617, 0.3238336741924286, 0.3083547353744507, 0.284359335899353, 0.26392117142677307, 0.2521582543849945, 0.20966379344463348, 0.20519104599952698, 0.16813549399375916, 0.20259320735931396, 0.3519335985183716, 0.3433935046195984, 0.24236483871936798, 0.1848035752773285, 0.29447367787361145, 0.3186514973640442, 0.20045818388462067, 0.24033115804195404, 0.2668027877807617]
+    ratio = [0.7102346420288086, 0.6065380573272705, 0.5505706071853638, 0.35587194561958313, 0.3565565347671509, 0.3276030719280243, 0.32468506693840027, 0.32064902782440186, 0.32487189769744873, 0.31859976053237915, 0.300719290971756, 0.29623422026634216, 0.29466789960861206, 0.27614328265190125, 0.2711314558982849, 0.2731832265853882, 0.2523508667945862, 0.2445002645254135, 0.24720817804336548, 0.23552346229553223, 0.2253788709640503, 0.22700028121471405, 0.22049733996391296, 0.2238377034664154, 0.21733179688453674, 0.21400253474712372, 0.2102346122264862, 0.21475712954998016, 0.2246401309967041, 0.2243506908416748, 0.2548102140426636, 0.2553164064884186]
     all_layer_ratio = np.array(ratio)
     
     use_cache = model.config.use_cache 

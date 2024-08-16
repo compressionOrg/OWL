@@ -130,7 +130,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--nsamples', type=int, default=1, help='no of samples used')
     parser.add_argument('--scale', type=int, default=100, help='no of samples used')
-    parser.add_argument('--alpha', type=float, default=0.1, help='alpha')
+    parser.add_argument('--alpha', type=float, default=0.25, help='alpha')
     parser.add_argument('--llama_version', type=int, default=1, help='llama version used')
     parser.add_argument('--sparse_ratio', type=float, default=0.7, help='llama version used')
     parser.add_argument('--model', type=str,default='Enoch/llama-7b-hf', help='model to used') ## change
@@ -247,18 +247,18 @@ if __name__ == "__main__":
     # 2. 计算每一层的z分数绝对值大于 1 的层中权重的比例，评估重要性
     # 3.根据重要性分配剪枝比例
     # 初始化字典来保存剪枝比例
+    
     layer_importance = {}
-    # 1. 对每一层进行z-score计算
-
-    for layer_name, metric in metric_conn.items():
-        per_layer_mean = torch.mean(metric_conn[layer_name])
-        per_layer_std = torch.std(metric_conn[layer_name])
+    # # 1. 对每一层进行z-score计算
+    for layer_name, metric in metric_node.items():
+        per_layer_mean = torch.mean(metric_node[layer_name])
+        per_layer_std = torch.std(metric_node[layer_name])
         z_scores = (metric - per_layer_mean) / per_layer_std
-        # 3. 计算每一层的z分数绝对值大于1的权重比例
+        # 2. 计算每一层的z分数绝对值大于1的权重比例
         imp_ratios = torch.sum(torch.abs(z_scores) < 1).float() / metric.numel()
         layer_importance[layer_name] = imp_ratios
     
-    # 4. 根据重要性分配剪枝比例
+    # 3. 根据重要性分配剪枝比例
     total_importance = sum(layer_importance.values())
     imps = {}
     for layer in layer_importance:
@@ -271,17 +271,18 @@ if __name__ == "__main__":
     scaled_ratios = (imp_ratios - min_ratio) * (1/(max_ratio - min_ratio)*args.alpha*2)
     # TODO:================C2========
     
-    # # TODO:================D1========
-    # # 1. 计算相邻两层的余弦相似度并除以向量模的乘积
-    # # 2. 对每一层进行zscore计算（或比值）
-    # # 3. 计算每一层的z分数绝对值大于 1 的层中权重的比例，评估重要性
-    # # 4.根据重要性分配剪枝比例
+    # # # TODO:================D1========
+    # # # 1. 计算相邻两层的余弦相似度并除以向量模的乘积
+    # # # 2. 对每一层进行zscore计算（或比值）
+    # # # 3. 计算每一层的z分数绝对值大于 1 的层中权重的比例，评估重要性
+    # # # 4.根据重要性分配剪枝比例
     # metric_total = torch.cat([metric_conn[x] for x in metric_conn])
     # total_mean = torch.mean(metric_total)
     # total_std = torch.std(metric_total)
     
     # layer_cos = {}
     # for layer in metric_conn:
+        
     #     # 计算点积
     #     dot_product = torch.dot(metric_conn[layer].flatten(), total_mean.flatten())
         
@@ -303,10 +304,10 @@ if __name__ == "__main__":
     # min_ratio = torch.min(imp_ratios)
     # max_ratio = torch.max(imp_ratios)
     # scaled_ratios = (imp_ratios - min_ratio) * (1/(max_ratio - min_ratio)*args.alpha*2)
-    # # TODO:================D1========
+    # # # TODO:================D1========
     
     all_layer_ratio = scaled_ratios - torch.mean(scaled_ratios) + (1-args.sparse_ratio)
-    
+    print(args.alpha)
     print(all_layer_ratio.tolist())
     # with open('all_layer_ratio_{}_{}.json'.format(args.sparse_ratio, args.alpha), 'w') as json_file:
     #     json.dump(all_layer_ratio.tolist(), json_file, indent=4, ensure_ascii=False)

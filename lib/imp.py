@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, LlamaTokenizer
 from importlib.metadata import version
 from transformers import AdamW
 from datasets import load_dataset
-from data import get_loaders
+from .data import get_loaders
 import torch.nn as nn 
 from tqdm import tqdm
 import argparse
@@ -66,7 +66,7 @@ def get_llm(model, cache_dir="llm_weights"):
     model.seqlen = 2048
     return model
 
-class data:
+class gradient:
     def __init__(self, model, scale):
         self.model = model
         self.node = dict()
@@ -77,9 +77,9 @@ class data:
         self.nsample = 0
         self.scale = scale
         self.device = torch.device("cpu") 
-        self.data_init()
+        self.gradient_init()
 
-    def data_init(self):
+    def gradient_init(self):
         layers = self.model.model.layers
         for i in tqdm(range(len(layers)), desc=f"initializing the gradient list ...."):
             layer = layers[i]
@@ -90,7 +90,7 @@ class data:
                 self.conn_l1[indexed_name] = torch.zeros_like(subset[name].weight, dtype=torch.float16, device=self.device)
                 self.conn_l2[indexed_name] = torch.zeros_like(subset[name].weight, dtype=torch.float32, device=self.device)
     
-    def update_data(self, model, nsample):
+    def update_gradient(self, model, nsample):
         assert nsample - self.nsample == 1, "number of samples must be incremented by 1"
         layers = model.model.layers
         for i in tqdm(range(len(layers)), desc=f"updating the gradient of sample no: {self.nsample}"):
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     optimizer = AdamW(model.parameters(), lr=0.01, eps=0.01)
     optimizer.zero_grad()
     scale = args.scale
-    grad_up = data(model, scale)
+    grad_up = gradient(model, scale)
     nsample = 0
     model.train()
     for input_ids, labels in dataloader:
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         loss = outputs.loss
         print("Printing the loss:", loss)
         loss.backward()
-        grad_up.update_data(model, nsample)
+        grad_up.update_gradient(model, nsample)
         optimizer.zero_grad()
     print("Done")
     gradients_l2 = grad_up.conn_l2

@@ -25,7 +25,6 @@ cd ..
     --sparsity_ratio $sparsity_ratio \
     --sparsity_type "unstructured" \
     --save save_test/ \
-    --offline \
     --save_log > logs/llama/${model_name}_$1_${sparsity_ratio}.log
 }
 
