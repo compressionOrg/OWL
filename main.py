@@ -5,7 +5,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer,GPT2Tokenizer
 # from importlib.metadata import version
 from collections import defaultdict
-from lib.prune_all import prune_wanda_outlier_structure_special,prune_wanda_new,prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier, prune_wanda,prune_magnitude,prune_sparsegpt,prune_wanda_zscores,test,prune_wanda_csl,get_layer_metric
+from lib.prune_all import  prune_wanda,prune_magnitude,prune_sparsegpt,prune_wanda_csl,get_layer_ratios,prune_sparsegpt_cls,prune_mag_csl
 from lib.eval import eval_ppl
 from lib.utils import check_sparsity, find_layers
 import sys
@@ -69,6 +69,7 @@ def main():
     ########################## for prune ################################
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, help='LLaMA model')
+    parser.add_argument('--model_name', type=str, help='LLaMA model_name')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
     parser.add_argument('--grad_nsamples', type=int, default=1, help='grad_nsamples')
@@ -80,8 +81,8 @@ def main():
     parser.add_argument('--save', type=str, default="result", help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--alpha', type=float, default=0.15, help='alpha')
-    parser.add_argument('--conn_ratio', type=float, default=0.5, help='conn_ratio')
-    parser.add_argument('--node_ratio', type=float, default=0.5, help='node_ratio')
+    # parser.add_argument('--conn_ratio', type=float, default=0.5, help='conn_ratio')
+    # parser.add_argument('--node_ratio', type=float, default=0.5, help='node_ratio')
     
 ########################################### for train
     parser.add_argument(
@@ -302,6 +303,7 @@ def main():
 
 
     model_name = args.model.split("/")[-1]
+    args.model_name = model_name
     print(f"loading llm model {args.model}")
     
     # Offline load moodel
@@ -329,7 +331,7 @@ def main():
     print ("target sparsity", args.sparsity_ratio)   
     
     if "csl" in args.prune_method:
-        metric = get_layer_metric(args, model, tokenizer, device)
+        ratios = get_layer_ratios(args, model, tokenizer, device)
         
     model.eval()
 
@@ -338,69 +340,26 @@ def main():
 
     ############################ baseline   ############################
     if args.prune_method == "wanda":
-
-
         prune_wanda(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-
-
-
-
+        
     elif args.prune_method == "magnitude":
-
-
         prune_magnitude(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
 
-
-
-
-
     elif args.prune_method == "sparsegpt":
-
-
         prune_sparsegpt(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
 
 
-    ############################ owl   ############################
-    elif args.prune_method == "wanda_owl":
-
-        prune_wanda_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-    
-    elif args.prune_method == "wanda_new":
-
-        prune_wanda_new(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    ############################ csl   ############################
+    elif args.prune_method == "wanda_csl":
+        prune_wanda_csl(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
         
-    elif args.prune_method == "wanda_zscores":
-
-        prune_wanda_zscores(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-    elif args.prune_method == "test":
-
-        test(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-
-    elif args.prune_method == "csl":
-
-        prune_wanda_csl(args, model, tokenizer, metric, device,  prune_n=prune_n, prune_m=prune_m)
-    
-    ############################ owl   ############################
-    elif args.prune_method == "magnitude_owl":
-
-        prune_mag_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-
-
-
-
-    elif args.prune_method == "sparsegpt_owl":
-    
-        prune_sparsegpt_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
-
-
-    elif args.prune_method == "wanda_owl_structure":
-
-
-        prune_wanda_outlier_structure(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    elif args.prune_method == "sparsegpt_cls":
+        prune_sparsegpt_cls(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
         
-        
-    elif args.prune_method == "wanda_owl_structure_special":
-        prune_wanda_outlier_structure_special(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+    elif args.prune_method == "magnitude_csl":
+        prune_mag_csl(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
+    
+    ############################ csl   ############################
     
     elif args.prune_method == "dense":
         pass
@@ -438,10 +397,6 @@ def main():
             print("method\tactual_sparsity\tsparsity_pattern\tLamda\tppl_test", file=f, flush=True)
             print(f"{args.prune_method}\t{sparsity_ratio:.4f}\t{args.sparsity_type}\t{args.Lamda}\t{ppl_test:.4f}", file=f, flush=True)
                 
-
-
-
-
 
 
 
