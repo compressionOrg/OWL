@@ -1,0 +1,107 @@
+{
+  "results": {
+    "boolq": {
+      "acc": 0.6256880733944954,
+      "acc_stderr": 0.00846424665644323
+    },
+    "arc_challenge": {
+      "acc": 0.24146757679180889,
+      "acc_stderr": 0.01250656483973943,
+      "acc_norm": 0.27047781569965873,
+      "acc_norm_stderr": 0.012980954547659554
+    },
+    "hellaswag": {
+      "acc": 0.3498307110137423,
+      "acc_stderr": 0.004759416464201141,
+      "acc_norm": 0.44284007169886475,
+      "acc_norm_stderr": 0.004957068377516512
+    },
+    "rte": {
+      "acc": 0.5667870036101083,
+      "acc_stderr": 0.029826764082138277
+    },
+    "mnli": {
+      "acc": 0.3866530820173204,
+      "acc_stderr": 0.004915761512480825
+    },
+    "openbookqa": {
+      "acc": 0.172,
+      "acc_stderr": 0.01689386887634748,
+      "acc_norm": 0.304,
+      "acc_norm_stderr": 0.02059164957122493
+    }
+  },
+  "versions": {
+    "boolq": 1,
+    "arc_challenge": 0,
+    "hellaswag": 0,
+    "rte": 0,
+    "mnli": 0,
+    "openbookqa": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_wanda_owl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "hellaswag": {
+      "acc": 0.3498307110137423,
+      "acc_stderr": 0.004759416464201141,
+      "acc_norm": 0.44284007169886475,
+      "acc_norm_stderr": 0.004957068377516512
+    },
+    "mnli": {
+      "acc": 0.3866530820173204,
+      "acc_stderr": 0.004915761512480825
+    },
+    "arc_challenge": {
+      "acc": 0.24146757679180889,
+      "acc_stderr": 0.01250656483973943,
+      "acc_norm": 0.27047781569965873,
+      "acc_norm_stderr": 0.012980954547659554
+    },
+    "rte": {
+      "acc": 0.5667870036101083,
+      "acc_stderr": 0.029826764082138277
+    },
+    "boolq": {
+      "acc": 0.6256880733944954,
+      "acc_stderr": 0.00846424665644323
+    },
+    "openbookqa": {
+      "acc": 0.172,
+      "acc_stderr": 0.01689386887634748,
+      "acc_norm": 0.304,
+      "acc_norm_stderr": 0.02059164957122493
+    }
+  },
+  "versions": {
+    "hellaswag": 0,
+    "mnli": 0,
+    "arc_challenge": 0,
+    "rte": 0,
+    "boolq": 1,
+    "openbookqa": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_wanda_owl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}

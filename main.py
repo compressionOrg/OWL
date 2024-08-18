@@ -11,17 +11,41 @@ from lib.eval import eval_ppl, eval_zero_shot
 from lib.utils import check_sparsity, find_layers
 import sys
 print('# of gpus: ', torch.cuda.device_count())
+from pdb import set_trace as st
 
 # spartio ratio and alpha
 sparsity_mapping = {
-    0.1: 0.02,
-    0.2: 0.04,
-    0.3: 0.04,
-    0.4: 0.06,
-    0.5: 0.06,
-    0.6: 0.1,
-    0.7: 0.15,
-    0.8: 0.2
+    "wanda": {
+        "0.1": 0.02,
+        "0.2": 0.04,
+        "0.3": 0.04,
+        "0.4": 0.06,
+        "0.5": 0.06,
+        "0.6": 0.1,
+        "0.7": 0.15,
+        "0.8": 0.2
+    },
+    "magnitude": {
+        "0.1": 0.1,
+        "0.2": 0.01,
+        "0.3": 0.01,
+        "0.4": 0.01,
+        "0.5": 0.01,
+        "0.6": 0.2,
+        "0.7": 0.1,
+        "0.8": 0.2
+        
+    },
+    "sparsegpt": {
+        "0.1": 0.01,
+        "0.2": 0.02,
+        "0.3": 0.02,
+        "0.4": 0.04,
+        "0.5": 0.02,
+        "0.6": 0.1,
+        "0.7": 0.15,
+        "0.8": 0.15 
+    },
 }
 
 import json
@@ -83,7 +107,7 @@ def main():
     parser.add_argument('--model_name', type=str, help='LLaMA model_name')
     parser.add_argument('--seed', type=int, default=0, help='Seed for sampling the calibration data.')
     parser.add_argument('--nsamples', type=int, default=128, help='Number of calibration samples.')
-    parser.add_argument('--grad_nsamples', type=int, default=1, help='grad_nsamples')
+    parser.add_argument('--grad_nsamples', type=int, default=10, help='grad_nsamples')
     parser.add_argument('--sparsity_ratio', type=float, default=0.7, help='Sparsity level')
     parser.add_argument("--sparsity_type", type=str)
     parser.add_argument("--prune_method", type=str)
@@ -286,7 +310,7 @@ def main():
     parser.add_argument(
         '--Hyper_m', 
         type=float,
-        default=3, )
+        default=5, )
     
     parser.add_argument(
     "--outlier_by_activation", action="store_true", help="outlier_by_activation")  
@@ -298,13 +322,17 @@ def main():
     
     args = parser.parse_args()
 
-    
     # use mapping sparsity ratio to alpha
     if args.use_alpha:
         args.alpha = args.alpha
     else:
-        assert args.sparsity_ratio in sparsity_mapping
-        args.alpha = sparsity_mapping[args.sparsity_ratio]
+        if "wanda" in args.prune_method:
+            args.alpha = sparsity_mapping['wanda'][str(args.sparsity_ratio)]
+        elif "magnitude" in args.prune_method:
+            args.alpha = sparsity_mapping['magnitude'][str(args.sparsity_ratio)]
+        elif "sparsegpt" in args.prune_method:
+            args.alpha = sparsity_mapping['sparsegpt'][str(args.sparsity_ratio)]
+    
     print("args.alpha",args.alpha)
     print ("args.nsamples",args.nsamples)
     # Setting seeds for reproducibility

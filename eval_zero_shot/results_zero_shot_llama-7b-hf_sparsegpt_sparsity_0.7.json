@@ -1,0 +1,54 @@
+{
+  "results": {
+    "mnli": {
+      "acc": 0.3563932755985736,
+      "acc_stderr": 0.0048345049613782685
+    },
+    "openbookqa": {
+      "acc": 0.166,
+      "acc_stderr": 0.01665661687653113,
+      "acc_norm": 0.282,
+      "acc_norm_stderr": 0.02014357284729079
+    },
+    "arc_challenge": {
+      "acc": 0.24232081911262798,
+      "acc_stderr": 0.01252159329580012,
+      "acc_norm": 0.2645051194539249,
+      "acc_norm_stderr": 0.012889272949313368
+    },
+    "hellaswag": {
+      "acc": 0.3396733718382792,
+      "acc_stderr": 0.004726304225137335,
+      "acc_norm": 0.425911173073093,
+      "acc_norm_stderr": 0.004934698012050244
+    },
+    "rte": {
+      "acc": 0.5415162454873647,
+      "acc_stderr": 0.029992535385373314
+    },
+    "boolq": {
+      "acc": 0.653211009174312,
+      "acc_stderr": 0.008324380793263168
+    }
+  },
+  "versions": {
+    "mnli": 0,
+    "openbookqa": 0,
+    "arc_challenge": 0,
+    "hellaswag": 0,
+    "rte": 0,
+    "boolq": 1
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_sparsegpt_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}
