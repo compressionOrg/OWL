@@ -5,13 +5,24 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM,LlamaTokenizer,GPT2Tokenizer
 # from importlib.metadata import version
 from collections import defaultdict
-from lib.prune_all import  prune_wanda,prune_magnitude,prune_sparsegpt,prune_wanda_csl,get_layer_ratios,prune_sparsegpt_cls,prune_mag_csl
-from lib.eval import eval_ppl
+from lib.prune_all import  prune_wanda,prune_magnitude,prune_sparsegpt,prune_wanda_csl,get_layer_ratios,prune_sparsegpt_csl,prune_mag_csl
+from lib.prune_all import prune_wanda_outlier_structure,prune_sparsegpt_outlier,prune_wanda_outlier,prune_mag_outlier
+from lib.eval import eval_ppl, eval_zero_shot
 from lib.utils import check_sparsity, find_layers
 import sys
 print('# of gpus: ', torch.cuda.device_count())
 
-
+# spartio ratio and alpha
+sparsity_mapping = {
+    0.1: 0.02,
+    0.2: 0.04,
+    0.3: 0.04,
+    0.4: 0.06,
+    0.5: 0.06,
+    0.6: 0.1,
+    0.7: 0.15,
+    0.8: 0.2
+}
 
 import json
 import logging
@@ -81,8 +92,11 @@ def main():
     parser.add_argument('--save', type=str, default="result", help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--alpha', type=float, default=0.15, help='alpha')
+    parser.add_argument('--use_alpha', action="store_true", help="whether to use custom alpha")
     # parser.add_argument('--conn_ratio', type=float, default=0.5, help='conn_ratio')
     # parser.add_argument('--node_ratio', type=float, default=0.5, help='node_ratio')
+    parser.add_argument('--eval_zero_shot', action="store_true", help="whether to zero-shot eval")
+    
     
 ########################################### for train
     parser.add_argument(
@@ -251,7 +265,13 @@ def main():
     )   
     
 
-
+    
+    parser.add_argument(
+    "--save_log", action="store_true", help="save log")
+    
+    parser.add_argument(
+    "--layer_method", type=str, default="weight", help='layer-wise method')
+    
     #### data parameters #####
     
     parser.add_argument(
@@ -261,12 +281,7 @@ def main():
         help="Lamda",
     )
     
-    parser.add_argument(
-        "--Scale",
-        default=0.2,
-        type=float,
-        help="Scale",
-    )
+    
      
     parser.add_argument(
         '--Hyper_m', 
@@ -280,16 +295,17 @@ def main():
     parser.add_argument(
     "--outlier_by_wmetric", action="store_true", help="outlier_by_wmetric")  
     
-    parser.add_argument(
-    "--save_log", action="store_true", help="save log")
-    
-    parser.add_argument(
-    "--layer_method", type=str, default="weight", help='layer-wise method')
-    
     
     args = parser.parse_args()
 
-
+    
+    # use mapping sparsity ratio to alpha
+    if args.use_alpha:
+        args.alpha = args.alpha
+    else:
+        assert args.sparsity_ratio in sparsity_mapping
+        args.alpha = sparsity_mapping[args.sparsity_ratio]
+    print("args.alpha",args.alpha)
     print ("args.nsamples",args.nsamples)
     # Setting seeds for reproducibility
     np.random.seed(args.seed)
@@ -353,14 +369,39 @@ def main():
     elif args.prune_method == "wanda_csl":
         prune_wanda_csl(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
         
-    elif args.prune_method == "sparsegpt_cls":
-        prune_sparsegpt_cls(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
+    elif args.prune_method == "sparsegpt_csl":
+        prune_sparsegpt_csl(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
         
     elif args.prune_method == "magnitude_csl":
         prune_mag_csl(args, model, tokenizer, ratios, device,  prune_n=prune_n, prune_m=prune_m)
     
     ############################ csl   ############################
     
+    ############################ owl   ############################
+    elif args.prune_method == "wanda_owl":
+
+        prune_wanda_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+
+
+    ############################ owl   ############################
+    elif args.prune_method == "magnitude_owl":
+
+        prune_mag_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+
+
+
+
+    elif args.prune_method == "sparsegpt_owl":
+    
+        prune_sparsegpt_outlier(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+
+
+    elif args.prune_method == "wanda_owl_structure":
+
+
+        prune_wanda_outlier_structure(args, model, tokenizer, device, prune_n=prune_n, prune_m=prune_m)
+
+
     elif args.prune_method == "dense":
         pass
 
@@ -394,11 +435,33 @@ def main():
         filename = f"log_{args.prune_method}.txt"
         save_filepath = os.path.join(dirname, filename)
         with open(save_filepath, "a") as f:
-            print("method\tactual_sparsity\tsparsity_pattern\tLamda\tppl_test", file=f, flush=True)
-            print(f"{args.prune_method}\t{sparsity_ratio:.4f}\t{args.sparsity_type}\t{args.Lamda}\t{ppl_test:.4f}", file=f, flush=True)
+            print("method\tactual_sparsity\tsparsity_pattern\talpha\tppl_test", file=f, flush=True)
+            print(f"{args.prune_method}\t{sparsity_ratio:.4f}\t{args.sparsity_type}\t{args.alpha}\t{ppl_test:.4f}", file=f, flush=True)
                 
 
+    import gc
 
+    del model
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    if args.eval_zero_shot:
+        accelerate=True
+        task_list = ["boolq", "rte", "hellaswag", "arc_challenge", "mnli",  "openbookqa"]
+        num_shot = 0
+        
+        
+        if args.save_model:
+            eval_model = args.save_model
+        else:
+            eval_model = args.model
+        results = eval_zero_shot(eval_model, task_list, num_shot, accelerate)
+        model_name = eval_model.split("/")[-1]
+        dirname = "eval_zero_shot"
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        with open('{}/results_zero_shot_{}.json'.format(dirname, model_name), 'a') as file:
+            json.dump(results, file, indent=2)
 
 if __name__ == '__main__':
     main()

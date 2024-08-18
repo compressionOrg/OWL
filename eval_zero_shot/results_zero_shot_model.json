@@ -1,0 +1,76 @@
+{
+  "results": {},
+  "versions": {
+    "arc_challenge": 0,
+    "hellaswag": 0,
+    "mnli": 0,
+    "rte": 0,
+    "boolq": 1,
+    "openbookqa": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=llm_weights/models--Enoch--llama-7b-hf/model,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": 0,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "hellaswag": {
+      "acc": 0.5695080661222864,
+      "acc_stderr": 0.0049413312155985505,
+      "acc_norm": 0.7621987651862179,
+      "acc_norm_stderr": 0.004248666961833349
+    },
+    "openbookqa": {
+      "acc": 0.342,
+      "acc_stderr": 0.021236147199899268,
+      "acc_norm": 0.444,
+      "acc_norm_stderr": 0.02224224437573102
+    },
+    "mnli": {
+      "acc": 0.4291390728476821,
+      "acc_stderr": 0.004996215492583537
+    },
+    "arc_challenge": {
+      "acc": 0.4180887372013652,
+      "acc_stderr": 0.014413988396996076,
+      "acc_norm": 0.44795221843003413,
+      "acc_norm_stderr": 0.01453201149821167
+    },
+    "rte": {
+      "acc": 0.6678700361010831,
+      "acc_stderr": 0.02834950418625685
+    },
+    "boolq": {
+      "acc": 0.7504587155963303,
+      "acc_stderr": 0.0075688020241860285
+    }
+  },
+  "versions": {
+    "hellaswag": 0,
+    "openbookqa": 0,
+    "mnli": 0,
+    "arc_challenge": 0,
+    "rte": 0,
+    "boolq": 1
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=llm_weights/models--Enoch--llama-7b-hf/model,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}

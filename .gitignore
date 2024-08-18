@@ -165,3 +165,5 @@ out
 results
 temp
 llm_weights
+pruned
+layer_ratios

@@ -1,0 +1,160 @@
+{
+  "results": {
+    "rte": {
+      "acc": 0.5270758122743683,
+      "acc_stderr": 0.030052303463143706
+    },
+    "mnli": {
+      "acc": 0.35374426897605704,
+      "acc_stderr": 0.0048264063443518536
+    },
+    "openbookqa": {
+      "acc": 0.128,
+      "acc_stderr": 0.014955913837590692,
+      "acc_norm": 0.264,
+      "acc_norm_stderr": 0.019732885585922084
+    },
+    "hellaswag": {
+      "acc": 0.27982473610834496,
+      "acc_stderr": 0.004479955169853627,
+      "acc_norm": 0.3028281218880701,
+      "acc_norm_stderr": 0.004585424513012099
+    },
+    "boolq": {
+      "acc": 0.482262996941896,
+      "acc_stderr": 0.008739550833308119
+    },
+    "arc_challenge": {
+      "acc": 0.18600682593856654,
+      "acc_stderr": 0.011370940183266742,
+      "acc_norm": 0.21416382252559726,
+      "acc_norm_stderr": 0.011988383205966477
+    }
+  },
+  "versions": {
+    "rte": 0,
+    "mnli": 0,
+    "openbookqa": 0,
+    "hellaswag": 0,
+    "boolq": 1,
+    "arc_challenge": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/Llama-2-7b-hf__sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "rte": {
+      "acc": 0.5342960288808665,
+      "acc_stderr": 0.030025579819366426
+    },
+    "boolq": {
+      "acc": 0.6535168195718655,
+      "acc_stderr": 0.008322657125583503
+    },
+    "hellaswag": {
+      "acc": 0.33359888468432586,
+      "acc_stderr": 0.004705347137699603,
+      "acc_norm": 0.4106751643098984,
+      "acc_norm_stderr": 0.004909509538525134
+    },
+    "openbookqa": {
+      "acc": 0.18,
+      "acc_stderr": 0.01719859247631426,
+      "acc_norm": 0.298,
+      "acc_norm_stderr": 0.020475118092988968
+    },
+    "arc_challenge": {
+      "acc": 0.21416382252559726,
+      "acc_stderr": 0.011988383205966494,
+      "acc_norm": 0.24744027303754265,
+      "acc_norm_stderr": 0.01261035266329267
+    },
+    "mnli": {
+      "acc": 0.35455934793683136,
+      "acc_stderr": 0.0048289154440667725
+    }
+  },
+  "versions": {
+    "rte": 0,
+    "boolq": 1,
+    "hellaswag": 0,
+    "openbookqa": 0,
+    "arc_challenge": 0,
+    "mnli": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/Llama-2-7b-hf__sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "mnli": {
+      "acc": 0.3536423841059603,
+      "acc_stderr": 0.004826091628908444
+    },
+    "hellaswag": {
+      "acc": 0.2591117307309301,
+      "acc_stderr": 0.004372516060164739,
+      "acc_norm": 0.2635929097789285,
+      "acc_norm_stderr": 0.004396806562351324
+    },
+    "rte": {
+      "acc": 0.5306859205776173,
+      "acc_stderr": 0.030039730592197812
+    },
+    "arc_challenge": {
+      "acc": 0.2295221843003413,
+      "acc_stderr": 0.012288926760890795,
+      "acc_norm": 0.2696245733788396,
+      "acc_norm_stderr": 0.012968040686869162
+    },
+    "boolq": {
+      "acc": 0.37951070336391435,
+      "acc_stderr": 0.008487341975756834
+    },
+    "openbookqa": {
+      "acc": 0.17,
+      "acc_stderr": 0.016815633531393415,
+      "acc_norm": 0.28,
+      "acc_norm_stderr": 0.020099950647503244
+    }
+  },
+  "versions": {
+    "mnli": 0,
+    "hellaswag": 0,
+    "rte": 0,
+    "arc_challenge": 0,
+    "boolq": 1,
+    "openbookqa": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/Llama-2-7b-hf__sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}

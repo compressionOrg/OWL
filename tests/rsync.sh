@@ -1,0 +1,1 @@
+rsync -avP /home/zhangyingying/cyl/71/OWL/* chenyuli@10.109.253.71:/home/chenyuli/project/prune/ --exclude="llm_weights" --exclude="datasets" --exclude="pruned"

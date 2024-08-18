@@ -21,10 +21,8 @@ cd ..
     --alpha $1 \
     --grad_nsamples 10 \
     --model $model \
-    --prune_method "csl" \
+    --prune_method "wanda_csl" \
     --sparsity_ratio $sparsity_ratio \
-    --conn_ratio 0.7 \
-    --node_ratio 0.3 \
     --sparsity_type "unstructured" \
     --save_log > logs/llama/csl/${model_name}_${sparsity_ratio}_$1.log
 }

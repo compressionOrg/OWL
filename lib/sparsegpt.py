@@ -83,7 +83,11 @@ class SparseGPT:
                     mask1 = mask[:, i1:i2]
                 else:
                     tmp = W1 ** 2 / (torch.diag(Hinv1).reshape((1, -1))) ** 2
-                    thresh = torch.sort(tmp.flatten())[0][int(tmp.numel() * sparsity)]
+                    # thresh = torch.sort(tmp.flatten())[0][int(tmp.numel() * sparsity)]
+                    thresh_index = int(tmp.numel() * sparsity)
+                    thresh_index = min(thresh_index, tmp.numel() - 1)  # Clamp the index to stay within bounds
+                    thresh = torch.sort(tmp.flatten())[0][thresh_index]
+                    
                     mask1 = tmp <= thresh
             else:
                 mask1 = torch.zeros_like(W1) == 1
