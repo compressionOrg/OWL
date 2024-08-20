@@ -1,0 +1,107 @@
+{
+  "results": {
+    "boolq": {
+      "acc": 0.6308868501529052,
+      "acc_stderr": 0.008440108625231401
+    },
+    "openbookqa": {
+      "acc": 0.184,
+      "acc_stderr": 0.01734617478175285,
+      "acc_norm": 0.306,
+      "acc_norm_stderr": 0.020629569998345393
+    },
+    "arc_challenge": {
+      "acc": 0.25170648464163825,
+      "acc_stderr": 0.012682496334042961,
+      "acc_norm": 0.2636518771331058,
+      "acc_norm_stderr": 0.012875929151297058
+    },
+    "rte": {
+      "acc": 0.5631768953068592,
+      "acc_stderr": 0.029855247390314935
+    },
+    "mnli": {
+      "acc": 0.37575140091696385,
+      "acc_stderr": 0.00488884271876151
+    },
+    "hellaswag": {
+      "acc": 0.3551085441147182,
+      "acc_stderr": 0.004775681871529864,
+      "acc_norm": 0.44911372236606256,
+      "acc_norm_stderr": 0.004963872936857937
+    }
+  },
+  "versions": {
+    "boolq": 1,
+    "openbookqa": 0,
+    "arc_challenge": 0,
+    "rte": 0,
+    "mnli": 0,
+    "hellaswag": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_wanda_csl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "boolq": {
+      "acc": 0.6308868501529052,
+      "acc_stderr": 0.008440108625231401
+    },
+    "mnli": {
+      "acc": 0.37575140091696385,
+      "acc_stderr": 0.00488884271876151
+    },
+    "hellaswag": {
+      "acc": 0.3551085441147182,
+      "acc_stderr": 0.004775681871529864,
+      "acc_norm": 0.44911372236606256,
+      "acc_norm_stderr": 0.004963872936857937
+    },
+    "openbookqa": {
+      "acc": 0.184,
+      "acc_stderr": 0.01734617478175285,
+      "acc_norm": 0.306,
+      "acc_norm_stderr": 0.020629569998345393
+    },
+    "arc_challenge": {
+      "acc": 0.25170648464163825,
+      "acc_stderr": 0.012682496334042961,
+      "acc_norm": 0.2636518771331058,
+      "acc_norm_stderr": 0.012875929151297058
+    },
+    "rte": {
+      "acc": 0.5631768953068592,
+      "acc_stderr": 0.029855247390314935
+    }
+  },
+  "versions": {
+    "boolq": 1,
+    "mnli": 0,
+    "hellaswag": 0,
+    "openbookqa": 0,
+    "arc_challenge": 0,
+    "rte": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_wanda_csl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}

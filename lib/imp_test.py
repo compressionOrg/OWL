@@ -315,8 +315,8 @@ if __name__ == "__main__":
     
     
     # TODO:1.计算每一层sum值
-    # for layer in metric_conn:
-    #      metric_conn[layer] = torch.sum(metric_conn[layer]).item()
+    for layer in metric_conn:metric_conn[layer] = torch.sum(metric_conn[layer]).item()
+    with open('llama3_8b_sensivity.json', 'w') as json_file:json.dump(metric_conn, json_file, indent=4, ensure_ascii=False)
     
     # TODO:2.计算每一层mena值
     # for layer in metric_conn:

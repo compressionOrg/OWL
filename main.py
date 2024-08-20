@@ -43,7 +43,7 @@ sparsity_mapping = {
         "0.4": 0.04,
         "0.5": 0.02,
         "0.6": 0.1,
-        "0.7": 0.15,
+        "0.7": 0.13,
         "0.8": 0.15 
     },
 }
@@ -116,7 +116,9 @@ def main():
     parser.add_argument('--save', type=str, default="result", help='Path to save results.')
     parser.add_argument('--save_model', type=str, default=None, help='Path to save the pruned model.')
     parser.add_argument('--alpha', type=float, default=0.15, help='alpha')
+    parser.add_argument('--k', type=float, default=0.5, help='k-threshold')
     parser.add_argument('--use_alpha', action="store_true", help="whether to use custom alpha")
+    parser.add_argument('--force_compute_ratios', action="store_true", help="whether to force compute the ratio")
     # parser.add_argument('--conn_ratio', type=float, default=0.5, help='conn_ratio')
     # parser.add_argument('--node_ratio', type=float, default=0.5, help='node_ratio')
     parser.add_argument('--eval_zero_shot', action="store_true", help="whether to zero-shot eval")
@@ -339,10 +341,11 @@ def main():
     np.random.seed(args.seed)
     torch.random.manual_seed(args.seed)
 
+    print("args.sparsity_type",args.sparsity_type)
     # Handling n:m sparsity
     prune_n, prune_m = 0, 0
     if args.sparsity_type != "unstructured":
-        assert args.sparsity_ratio == 0.5, "sparsity ratio must be 0.5 for structured N:M sparsity"
+        # assert args.sparsity_ratio == 0.5, "sparsity ratio must be 0.5 for structured N:M sparsity"
         prune_n, prune_m = map(int, args.sparsity_type.split(":"))
 
 
@@ -460,7 +463,7 @@ def main():
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         
-        filename = f"log_{args.prune_method}.txt"
+        filename = f"log_{args.prune_method}_.txt"
         save_filepath = os.path.join(dirname, filename)
         with open(save_filepath, "a") as f:
             print("method\tactual_sparsity\tsparsity_pattern\talpha\tppl_test", file=f, flush=True)

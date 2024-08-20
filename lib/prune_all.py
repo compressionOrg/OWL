@@ -17,31 +17,6 @@ from .utils import find_layers, prepare_calibration_input_opt,return_given_alpha
 from pdb import set_trace as st 
 
 
-def get_layer_metric(args, model, tokenizer, device):
-    print("loading calibdation data")
-    dataloader, _ = get_loaders("c4",nsamples=args.grad_nsamples,seed=args.seed,seqlen=64,tokenizer=tokenizer)
-    print("dataset loading complete")
-    optimizer = AdamW(model.parameters(), lr=0.01, eps=0.01)
-    optimizer.zero_grad()
-    
-    layer_metric = Layer(model)
-    nsample = 0
-    model.train()
-    for input_ids, labels in dataloader:
-        nsample+=1
-        print("making gradient computation on sample: ", nsample)
-        input_ids = input_ids.to(device)
-        labels = labels.to(device)
-        outputs = model(input_ids=input_ids, labels=labels) 
-        loss = outputs.loss
-        print("Printing the loss:", loss)
-        loss.backward()
-        layer_metric.update_layer(model, nsample)
-        optimizer.zero_grad()
-    print("Done")
-    return layer_metric
-
-
 def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune_n=0, prune_m=0):
     
     print ("model",model)
@@ -71,11 +46,12 @@ def prune_magnitude(args, model, tokenizer, device=torch.device("cuda:0"), prune
 
 def get_layer_ratios(args, model, tokenizer, metric, device=torch.device("cuda:0")):
     ratio_path = os.path.join("layer_ratios", "{}_{}_{}.json".format(args.model_name, args.sparsity_ratio, args.alpha))
-    if os.path.exists(ratio_path):
+    if os.path.exists(ratio_path) and not args.force_compute_ratios:
         print("load exist file: {}".format(ratio_path))
         with open(ratio_path,  'r', encoding='utf-8') as json_file:
             ratios = json.load(json_file)
         return ratios
+    print("k is {}".format(args.k))
     print("loading calibdation data")
     dataloader, _ = get_loaders("c4",nsamples=args.grad_nsamples,seed=args.seed,seqlen=64,tokenizer=tokenizer)
     print("dataset loading complete")
@@ -113,11 +89,11 @@ def get_layer_ratios(args, model, tokenizer, metric, device=torch.device("cuda:0
         per_layer_mean = torch.mean(metric_conn[layer_name])
         per_layer_std = torch.std(metric_conn[layer_name])
         z_scores = (metric - per_layer_mean) / per_layer_std
-        # 3. 计算每一层的z分数绝对值小于1的权重比例
-        imp_ratios = torch.sum(torch.abs(z_scores) < 1).float() / metric.numel()
+        # 2. 计算每一层的z分数绝对值小于1的权重比例
+        imp_ratios = torch.sum(torch.abs(z_scores) <= args.k).float() / metric.numel()
         layer_conn[layer_name] = imp_ratios
     
-    # 4. 根据重要性分配剪枝比例
+    # 3. 根据重要性分配剪枝比例
     total_conn = sum(layer_conn.values())
     ratio_conn = {}
     for layer in layer_conn:

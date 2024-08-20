@@ -6,7 +6,7 @@ model="Enoch/llama-7b-hf"
 # model="meta-llama/Llama-2-7b-hf"
 # model="meta-llama/Meta-Llama-3-8B"
 # prune_method="wanda"
-prune_methods=("magnitude_csl" "sparsegpt_csl")
+prune_methods=("sparsegpt_csl" "magnitude_csl" )
 
 model_name=$(echo "$model" | awk -F'/' '{print $2}')
 # save_model="pruned/${model_name}_${prune_method}_sparsity_0.7"

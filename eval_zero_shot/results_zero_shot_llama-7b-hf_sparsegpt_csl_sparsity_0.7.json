@@ -51,4 +51,163 @@
     "bootstrap_iters": 100000,
     "description_dict": {}
   }
+}{
+  "results": {
+    "arc_challenge": {
+      "acc": 0.2687713310580205,
+      "acc_stderr": 0.012955065963710688,
+      "acc_norm": 0.2738907849829352,
+      "acc_norm_stderr": 0.013032004972989501
+    },
+    "boolq": {
+      "acc": 0.6611620795107034,
+      "acc_stderr": 0.008278325755273753
+    },
+    "openbookqa": {
+      "acc": 0.21,
+      "acc_stderr": 0.018233620865305916,
+      "acc_norm": 0.326,
+      "acc_norm_stderr": 0.020984009562393564
+    },
+    "mnli": {
+      "acc": 0.35537442689760573,
+      "acc_stderr": 0.004831409229420153
+    },
+    "rte": {
+      "acc": 0.5812274368231047,
+      "acc_stderr": 0.02969666108123482
+    },
+    "hellaswag": {
+      "acc": 0.37532364070902213,
+      "acc_stderr": 0.004832167854501652,
+      "acc_norm": 0.4797849034056961,
+      "acc_norm_stderr": 0.004985701593898001
+    }
+  },
+  "versions": {
+    "arc_challenge": 0,
+    "boolq": 1,
+    "openbookqa": 0,
+    "mnli": 0,
+    "rte": 0,
+    "hellaswag": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_sparsegpt_csl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "mnli": {
+      "acc": 0.3534386143657667,
+      "acc_stderr": 0.004825461478853519
+    },
+    "openbookqa": {
+      "acc": 0.196,
+      "acc_stderr": 0.017770751227744862,
+      "acc_norm": 0.318,
+      "acc_norm_stderr": 0.020847571620814007
+    },
+    "hellaswag": {
+      "acc": 0.3684524995020912,
+      "acc_stderr": 0.004813991069808266,
+      "acc_norm": 0.476000796654053,
+      "acc_norm_stderr": 0.004984030250507302
+    },
+    "rte": {
+      "acc": 0.51985559566787,
+      "acc_stderr": 0.030072723167317184
+    },
+    "arc_challenge": {
+      "acc": 0.2696245733788396,
+      "acc_stderr": 0.01296804068686915,
+      "acc_norm": 0.27474402730375425,
+      "acc_norm_stderr": 0.013044617212771227
+    },
+    "boolq": {
+      "acc": 0.6626911314984709,
+      "acc_stderr": 0.008269171495741615
+    }
+  },
+  "versions": {
+    "mnli": 0,
+    "openbookqa": 0,
+    "hellaswag": 0,
+    "rte": 0,
+    "arc_challenge": 0,
+    "boolq": 1
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_sparsegpt_csl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
+}{
+  "results": {
+    "boolq": {
+      "acc": 0.6626911314984709,
+      "acc_stderr": 0.008269171495741615
+    },
+    "hellaswag": {
+      "acc": 0.3684524995020912,
+      "acc_stderr": 0.004813991069808266,
+      "acc_norm": 0.476000796654053,
+      "acc_norm_stderr": 0.004984030250507302
+    },
+    "arc_challenge": {
+      "acc": 0.2696245733788396,
+      "acc_stderr": 0.01296804068686915,
+      "acc_norm": 0.27474402730375425,
+      "acc_norm_stderr": 0.013044617212771227
+    },
+    "openbookqa": {
+      "acc": 0.196,
+      "acc_stderr": 0.017770751227744862,
+      "acc_norm": 0.318,
+      "acc_norm_stderr": 0.020847571620814007
+    },
+    "mnli": {
+      "acc": 0.3534386143657667,
+      "acc_stderr": 0.004825461478853519
+    },
+    "rte": {
+      "acc": 0.51985559566787,
+      "acc_stderr": 0.030072723167317184
+    }
+  },
+  "versions": {
+    "boolq": 1,
+    "hellaswag": 0,
+    "arc_challenge": 0,
+    "openbookqa": 0,
+    "mnli": 0,
+    "rte": 0
+  },
+  "config": {
+    "model": "hf-causal-experimental",
+    "model_args": "pretrained=pruned/llama-7b-hf_sparsegpt_csl_sparsity_0.7,use_accelerate=True,device_map_option=\"auto\"",
+    "num_fewshot": 0,
+    "batch_size": null,
+    "batch_sizes": [],
+    "device": null,
+    "no_cache": true,
+    "limit": null,
+    "bootstrap_iters": 100000,
+    "description_dict": {}
+  }
 }

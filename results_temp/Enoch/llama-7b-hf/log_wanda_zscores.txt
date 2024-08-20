@@ -1,0 +1,32 @@
+method	actual_sparsity	sparsity_pattern	ppl_test
+wanda_zscores	0.4999	unstructured	7.2298
+method	actual_sparsity	sparsity_pattern	ppl_test
+wanda_zscores	0.4999	unstructured	7.3580
+method	actual_sparsity	sparsity_pattern	ppl_test
+wanda_zscores	0.4999	unstructured	7.2733
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.5013	unstructured	0.3	7.4483
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.5069	unstructured	0.4	7.5943
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.5125	unstructured	0.5	7.7296
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.01	7.2541
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.01	7.2541
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.02	7.2440
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.05	7.2659
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.2733
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.2733
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.2089
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.5736
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.2089
+method	actual_sparsity	sparsity_pattern	Lamda	ppl_test
+wanda_zscores	0.4999	unstructured	0.08	7.2284

@@ -12,7 +12,7 @@ cd ..
 python   main.py \
  --model_name_or_path "Enoch/llama-7b-hf" \
  --model "Enoch/llama-7b-hf" \
- --prune_method "test" \
+ --prune_method "wanda_csl" \
  --sparsity_ratio 0.7 \
  --sparsity_type "unstructured" \
  --save save_test/ \

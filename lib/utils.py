@@ -1,5 +1,3 @@
-import numpy as np
-from scipy.stats import entropy
 import torch
 import torch.nn as nn
 from pdb import set_trace as st 
